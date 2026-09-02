@@ -250,6 +250,8 @@
   .piece svg{ display:block; overflow:visible; }
   .piece.white svg *{ stroke:#4a2c1a; stroke-width:3; stroke-linejoin:round; }
   .piece.black svg *{ stroke:#0a0603; stroke-width:2.2; stroke-linejoin:round; }
+  .piece.white svg .eye{ fill:#4a2c1a; }
+  .piece.black svg .eye{ fill:#e8d9c0; }
 
   .piece.captured-anim{
     animation:captureShatter .32s ease forwards;
@@ -592,6 +594,8 @@
     font-variant-emoji:text;
   }
   .promo-btn:hover{ box-shadow:0 0 0 2px var(--brass-bright); }
+  .promo-btn svg{ display:block; overflow:visible; }
+  .promo-btn svg *{ stroke:#4a2c1a; stroke-width:2.6; stroke-linejoin:round; }
 
   footer.note{
     margin-top:22px;
@@ -794,6 +798,7 @@
 </div>
 
 <script>
+
 /* ============================================================
    CHESS ENGINE (verified via perft: 20 / 400 / 8902 / 197281)
    ============================================================ */
@@ -1337,40 +1342,39 @@ function finishSAN(state, move, base) {
 
 
 
+
 /* ============================================================
    UI / RENDERING / ANIMATION / GAME FLOW
    ============================================================ */
 
-const PIECE_GLYPH = { P:'♟', N:'♞', B:'♝', R:'♜', Q:'♛', K:'♚' };
-// Appending U+FE0E (the "text presentation" variation selector) tells browsers/OSes
-// to render these as plain text glyphs instead of substituting a colored emoji-style
-// symbol. Kept as a defensive no-op for K/Q/R/B/N (which are pure text on every
-// platform and were never affected), but the pawn (U+265F) is the one character in
-// the whole chess Unicode block that was ever given a dual emoji/text identity
-// (added in Unicode 11.0) — so rather than rely on a marker some renderer might
-// ignore, the pawn is drawn as a small inline SVG instead, removing the ambiguity
-// entirely regardless of platform.
-function glyphChar(type) { return PIECE_GLYPH[type] + '\uFE0E'; }
+// A single cohesive vector piece set (all six piece types share the same
+// "goblet" base/body language, differing only in their top ornament) drawn
+// as inline SVG rather than relying on font glyphs. This sidesteps a real
+// cross-platform issue: the pawn (U+265F) is the one character in the whole
+// chess Unicode block that was ever given a dual emoji/text identity (added
+// in Unicode 11.0), which caused iOS to render it in a fixed color regardless
+// of CSS. Rather than mix a custom pawn shape with font glyphs for the other
+// five pieces (which looked visually inconsistent), all six are drawn in the
+// same style so the set reads as one family on every device.
+const PIECE_SVG_BODY = {
+  P: '<circle cx="50" cy="30" r="15" fill="currentColor"/><path d="M36,45 C36,45 64,45 64,45 L71,80 C73,86 68,90 58,90 L42,90 C32,90 27,86 29,80 Z" fill="currentColor"/><rect x="18" y="90" width="64" height="8" rx="3" fill="currentColor"/>',
+  N: '<rect x="17.0" y="86" width="66" height="9" rx="3.5" fill="currentColor"/><path d="M33.0,58 C27.0,70 19.0,72 21.0,86 L79.0,86 C81.0,72 73.0,70 67.0,58 Z" fill="currentColor"/><rect x="29.0" y="54" width="42" height="7" rx="3" fill="currentColor"/><path d="M22,46 C20,42 21,37 25,33 C28,28 32,24 36,20 L40,8 L47,18 C54,16 61,17 66,21 C75,27 80,36 78,45 C78,50 74,55 68,58 L36,58 C34,54 30,52 28,52 C26,50 24,49 22,46 Z" fill="currentColor"/><circle cx="40" cy="26" r="2.3" fill="var(--eye-color,#000)" class="eye"/><path d="M24,42 C25,44 27,45 29,44" stroke="currentColor" stroke-width="1.8" fill="none" class="detail"/><path d="M44,14 L52,18 M42,19 L51,23 M41,24 L49,28" stroke="currentColor" stroke-width="1.6" class="detail"/>',
+  B: '<rect x="17.0" y="86" width="66" height="9" rx="3.5" fill="currentColor"/><path d="M37.0,52 C31.0,64 19.0,72 21.0,86 L79.0,86 C81.0,72 69.0,64 63.0,52 Z" fill="currentColor"/><rect x="33.0" y="48" width="34" height="7" rx="3" fill="currentColor"/><path d="M37,48 C34,32 40,16 50,10 C60,16 66,32 63,48 C58,44 42,44 37,48 Z" fill="currentColor"/><line x1="42" y1="24" x2="54" y2="14" stroke="currentColor" stroke-width="2.6" class="slit"/><circle cx="50" cy="8" r="4.2" fill="currentColor"/>',
+  R: '<rect x="18.0" y="86" width="64" height="9" rx="3.5" fill="currentColor"/><path d="M32.0,52 C26.0,64 20.0,72 22.0,86 L78.0,86 C80.0,72 74.0,64 68.0,52 Z" fill="currentColor"/><rect x="28.0" y="48" width="44" height="7" rx="3" fill="currentColor"/><rect x="34" y="24" width="32" height="30" rx="1" fill="currentColor"/><path d="M30,24 L30,12 L38,12 L38,17 L45,17 L45,12 L55,12 L55,17 L62,17 L62,12 L70,12 L70,24 Z" fill="currentColor"/>',
+  Q: '<rect x="17.0" y="86" width="66" height="9" rx="3.5" fill="currentColor"/><path d="M35.0,50 C29.0,62 19.0,72 21.0,86 L79.0,86 C81.0,72 71.0,62 65.0,50 Z" fill="currentColor"/><rect x="31.0" y="46" width="38" height="7" rx="3" fill="currentColor"/><path d="M33,50 C31,38 34,28 38,22 C41,28 42,34 42,40 C44,30 47,22 50,16 C53,22 56,30 58,40 C58,34 59,28 62,22 C66,28 69,38 67,50 Z" fill="currentColor"/><circle cx="38" cy="22" r="4.0" fill="currentColor"/><circle cx="50" cy="16" r="4.6" fill="currentColor"/><circle cx="62" cy="22" r="4.0" fill="currentColor"/><circle cx="31" cy="26" r="4.0" fill="currentColor"/><circle cx="69" cy="26" r="4.0" fill="currentColor"/>',
+  K: '<rect x="17.0" y="86" width="66" height="9" rx="3.5" fill="currentColor"/><path d="M34.0,50 C28.0,62 19.0,72 21.0,86 L79.0,86 C81.0,72 72.0,62 66.0,50 Z" fill="currentColor"/><rect x="30.0" y="46" width="40" height="7" rx="3" fill="currentColor"/><path d="M34,50 C32,36 36,24 42,18 L58,18 C64,24 68,36 66,50 C58,45 42,45 34,50 Z" fill="currentColor"/><rect x="46.5" y="4" width="7" height="20" rx="2" fill="currentColor"/><rect x="38" y="10" width="24" height="7" rx="2" fill="currentColor"/>',
+};
 
-const PAWN_SVG_BODY =
-  '<circle cx="50" cy="25" r="15" fill="currentColor"/>' +
-  '<path d="M36,40 C36,40 64,40 64,40 L71,76 C73,83 68,87 58,87 L42,87 C32,87 27,83 29,76 Z" fill="currentColor"/>' +
-  '<rect x="17" y="87" width="66" height="9" rx="4" fill="currentColor"/>';
-
-function pawnSvgMarkup(sizeAttrs) {
-  return `<svg viewBox="0 0 100 100" ${sizeAttrs} xmlns="http://www.w3.org/2000/svg">${PAWN_SVG_BODY}</svg>`;
+function pieceSvgMarkup(type, sizeAttrs) {
+  return `<svg viewBox="0 0 100 100" ${sizeAttrs} xmlns="http://www.w3.org/2000/svg">${PIECE_SVG_BODY[type]}</svg>`;
 }
 
-// Sets a piece's visual content on `el`: text glyph for K/Q/R/B/N, SVG for P.
-// pawnSizeAttrs lets callers size the pawn SVG appropriately for their container
-// (the board's pieces have a definite percentage-based box; small inline spots
+// Sets a piece's visual content on `el` as an inline SVG.
+// sizeAttrs lets callers size it appropriately for their container (the
+// board's pieces have a definite percentage-based box; small inline spots
 // like the captured-piece tray don't, so they need explicit pixel dimensions).
-function setPieceGlyph(el, type, pawnSizeAttrs) {
-  if (type === 'P') {
-    el.innerHTML = pawnSvgMarkup(pawnSizeAttrs || 'width="92%" height="92%"');
-  } else {
-    el.textContent = glyphChar(type);
-  }
+function setPieceGlyph(el, type, sizeAttrs) {
+  el.innerHTML = pieceSvgMarkup(type, sizeAttrs || 'width="92%" height="92%"');
 }
 const FILES = 'abcdefgh';
 
@@ -1808,7 +1812,7 @@ function animateMove(move) {
         const el = pieceEls.get(moverId);
         const meta = pieceMeta.get(moverId);
         meta.type = move.promotion;
-        el.textContent = glyphChar(move.promotion);
+        setPieceGlyph(el, move.promotion);
         el.classList.add('promote-pop');
         el.addEventListener('animationend', () => el.classList.remove('promote-pop'), { once: true });
       }
@@ -2034,7 +2038,7 @@ function askPromotion(candidateMoves) {
     for (const type of ['Q', 'R', 'B', 'N']) {
       const btn = document.createElement('div');
       btn.className = 'promo-btn';
-      btn.textContent = glyphChar(type);
+      setPieceGlyph(btn, type, 'width="70%" height="70%"');
       btn.addEventListener('click', () => {
         overlay.classList.add('hidden');
         resolve(candidateMoves.find(m => m.promotion === type));
@@ -2231,6 +2235,7 @@ renderRecords();
     if (last.difficulty !== undefined) document.getElementById('selDifficulty').value = String(last.difficulty);
   }
 })();
+
 
 </script>
 </body>
