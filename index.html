@@ -718,6 +718,7 @@
       </select>
     </div>
     <div class="field" id="startWarning" style="display:none; color:var(--wine-bright); font-size:12.5px; margin-top:-8px;"></div>
+    <div class="field" id="faceToFaceHint" style="display:none; color:var(--brass); font-size:12px; margin-top:-8px;">Two players on one device: Black's pieces will appear rotated, so lay the device flat between you — each side reads their own pieces upright.</div>
     <div class="field">
       <label for="selTime">Time Control</label>
       <select id="selTime">
@@ -1357,12 +1358,12 @@ function finishSAN(state, move, base) {
 // five pieces (which looked visually inconsistent), all six are drawn in the
 // same style so the set reads as one family on every device.
 const PIECE_SVG_BODY = {
-  P: '<circle cx="50" cy="30" r="15" fill="currentColor"/><path d="M36,45 C36,45 64,45 64,45 L71,80 C73,86 68,90 58,90 L42,90 C32,90 27,86 29,80 Z" fill="currentColor"/><rect x="18" y="90" width="64" height="8" rx="3" fill="currentColor"/>',
-  N: '<rect x="17.0" y="86" width="66" height="9" rx="3.5" fill="currentColor"/><path d="M33.0,58 C27.0,70 19.0,72 21.0,86 L79.0,86 C81.0,72 73.0,70 67.0,58 Z" fill="currentColor"/><rect x="29.0" y="54" width="42" height="7" rx="3" fill="currentColor"/><path d="M22,46 C20,42 21,37 25,33 C28,28 32,24 36,20 L40,8 L47,18 C54,16 61,17 66,21 C75,27 80,36 78,45 C78,50 74,55 68,58 L36,58 C34,54 30,52 28,52 C26,50 24,49 22,46 Z" fill="currentColor"/><circle cx="40" cy="26" r="2.3" fill="var(--eye-color,#000)" class="eye"/><path d="M24,42 C25,44 27,45 29,44" stroke="currentColor" stroke-width="1.8" fill="none" class="detail"/><path d="M44,14 L52,18 M42,19 L51,23 M41,24 L49,28" stroke="currentColor" stroke-width="1.6" class="detail"/>',
-  B: '<rect x="17.0" y="86" width="66" height="9" rx="3.5" fill="currentColor"/><path d="M37.0,52 C31.0,64 19.0,72 21.0,86 L79.0,86 C81.0,72 69.0,64 63.0,52 Z" fill="currentColor"/><rect x="33.0" y="48" width="34" height="7" rx="3" fill="currentColor"/><path d="M37,48 C34,32 40,16 50,10 C60,16 66,32 63,48 C58,44 42,44 37,48 Z" fill="currentColor"/><line x1="42" y1="24" x2="54" y2="14" stroke="currentColor" stroke-width="2.6" class="slit"/><circle cx="50" cy="8" r="4.2" fill="currentColor"/>',
-  R: '<rect x="18.0" y="86" width="64" height="9" rx="3.5" fill="currentColor"/><path d="M32.0,52 C26.0,64 20.0,72 22.0,86 L78.0,86 C80.0,72 74.0,64 68.0,52 Z" fill="currentColor"/><rect x="28.0" y="48" width="44" height="7" rx="3" fill="currentColor"/><rect x="34" y="24" width="32" height="30" rx="1" fill="currentColor"/><path d="M30,24 L30,12 L38,12 L38,17 L45,17 L45,12 L55,12 L55,17 L62,17 L62,12 L70,12 L70,24 Z" fill="currentColor"/>',
-  Q: '<rect x="17.0" y="86" width="66" height="9" rx="3.5" fill="currentColor"/><path d="M35.0,50 C29.0,62 19.0,72 21.0,86 L79.0,86 C81.0,72 71.0,62 65.0,50 Z" fill="currentColor"/><rect x="31.0" y="46" width="38" height="7" rx="3" fill="currentColor"/><path d="M33,50 C31,38 34,28 38,22 C41,28 42,34 42,40 C44,30 47,22 50,16 C53,22 56,30 58,40 C58,34 59,28 62,22 C66,28 69,38 67,50 Z" fill="currentColor"/><circle cx="38" cy="22" r="4.0" fill="currentColor"/><circle cx="50" cy="16" r="4.6" fill="currentColor"/><circle cx="62" cy="22" r="4.0" fill="currentColor"/><circle cx="31" cy="26" r="4.0" fill="currentColor"/><circle cx="69" cy="26" r="4.0" fill="currentColor"/>',
-  K: '<rect x="17.0" y="86" width="66" height="9" rx="3.5" fill="currentColor"/><path d="M34.0,50 C28.0,62 19.0,72 21.0,86 L79.0,86 C81.0,72 72.0,62 66.0,50 Z" fill="currentColor"/><rect x="30.0" y="46" width="40" height="7" rx="3" fill="currentColor"/><path d="M34,50 C32,36 36,24 42,18 L58,18 C64,24 68,36 66,50 C58,45 42,45 34,50 Z" fill="currentColor"/><rect x="46.5" y="4" width="7" height="20" rx="2" fill="currentColor"/><rect x="38" y="10" width="24" height="7" rx="2" fill="currentColor"/>',
+  P: '<circle cx="50" cy="24" r="13" fill="currentColor"/><path d="M39,37 L26,78 L74,78 L61,37 Z" fill="currentColor"/><rect x="18" y="78" width="64" height="8" rx="2" fill="currentColor"/>',
+  N: '<rect x="17" y="87" width="66" height="8" rx="2" fill="currentColor"/><path d="M33,63 L21,87 L79,87 L67,63 Z" fill="currentColor"/><rect x="30" y="56" width="40" height="7" rx="2" fill="currentColor"/><path d="M22,46 C20,42 21,37 25,33 C28,28 32,24 36,20 L40,8 L47,18 C54,16 61,17 66,21 C75,27 80,36 78,45 C78,50 74,55 68,58 L36,58 C34,54 30,52 28,52 C26,50 24,49 22,46 Z" fill="currentColor"/><circle cx="40" cy="26" r="2.3" fill="var(--eye-color,#000)" class="eye"/><path d="M24,42 C25,44 27,45 29,44" stroke="currentColor" stroke-width="1.8" fill="none"/><path d="M44,14 L52,18 M42,19 L51,23 M41,24 L49,28" stroke="currentColor" stroke-width="1.6"/>',
+  B: '<rect x="19" y="87" width="62" height="8" rx="2" fill="currentColor"/><path d="M37,55 L23,87 L77,87 L63,55 Z" fill="currentColor"/><rect x="34" y="48" width="32" height="7" rx="2" fill="currentColor"/><path d="M50,10 C61,18 65,32 63,48 C57,45 43,45 37,48 C35,32 39,18 50,10 Z" fill="currentColor"/><line x1="44" y1="26" x2="56" y2="16" stroke="currentColor" stroke-width="2.4"/><circle cx="50" cy="7" r="3.6" fill="currentColor"/>',
+  R: '<rect x="20" y="87" width="60" height="8" rx="2" fill="currentColor"/><path d="M32,53 L24,87 L76,87 L68,53 Z" fill="currentColor"/><rect x="29" y="46" width="42" height="7" rx="2" fill="currentColor"/><rect x="35" y="22" width="30" height="30" rx="1" fill="currentColor"/><path d="M35,22 L35,10 L41.5,10 L41.5,17 L46.75,17 L46.75,10 L53.25,10 L53.25,17 L58.5,17 L58.5,10 L65.0,10 L65.0,22 Z" fill="currentColor"/>',
+  Q: '<rect x="17" y="87" width="66" height="8" rx="2" fill="currentColor"/><path d="M33,51 L21,87 L79,87 L67,51 Z" fill="currentColor"/><rect x="30" y="44" width="40" height="7" rx="2" fill="currentColor"/><path d="M33,46 C31,36.0 35.5,30 41.5,24 C45.5,18 46,16 50,14 C54,16 54.5,18 58.5,24 C64.5,30 69,36.0 67,46 Z" fill="currentColor"/><circle cx="33" cy="26" r="3.7" fill="currentColor"/><circle cx="41.5" cy="20" r="3.7" fill="currentColor"/><circle cx="50" cy="14" r="4.3" fill="currentColor"/><circle cx="58.5" cy="20" r="3.7" fill="currentColor"/><circle cx="67" cy="26" r="3.7" fill="currentColor"/>',
+  K: '<rect x="17" y="87" width="66" height="8" rx="2" fill="currentColor"/><path d="M34,53 L21,87 L79,87 L66,53 Z" fill="currentColor"/><rect x="31" y="46" width="38" height="7" rx="2" fill="currentColor"/><path d="M34,48 C35,36 39,26 44,20 L56,20 C61,26 65,36 66,48 C58,44 42,44 34,48 Z" fill="currentColor"/><rect x="46.5" y="4" width="7" height="19" rx="1.5" fill="currentColor"/><rect x="38" y="10" width="24" height="7" rx="1.5" fill="currentColor"/>',
 };
 
 function pieceSvgMarkup(type, sizeAttrs) {
@@ -1722,13 +1723,28 @@ function transformFor(r, c) {
   return `translate(${c * 100}%, ${r * 100}%)`;
 }
 
+// When two humans share one device face-to-face (device laid flat on a table
+// between them), Black's pieces are rotated 180° so each player sees their own
+// pieces upright from their own side. This only makes sense when both sides
+// are human — if Black is the Computer, there's no one sitting opposite to
+// benefit, and rotating would just make the board look broken to a solo player.
+function shouldRotateBlackPieces() {
+  return playerAssignment.white !== 'Computer' && playerAssignment.black !== 'Computer';
+}
+
+function pieceTransformFor(r, c, color) {
+  const base = transformFor(r, c);
+  return (color === 'b' && shouldRotateBlackPieces()) ? base + ' rotate(180deg)' : base;
+}
+
 function createPieceEl(type, color, r, c) {
   const id = 'pc' + (nextPieceId++);
   const el = document.createElement('div');
   el.className = 'piece ' + (color === 'w' ? 'white' : 'black');
   setPieceGlyph(el, type);
-  el.style.transform = transformFor(r, c);
-  el.style.setProperty('--tf', transformFor(r, c));
+  const tf = pieceTransformFor(r, c, color);
+  el.style.transform = tf;
+  el.style.setProperty('--tf', tf);
   piecesLayerEl.appendChild(el);
   pieceEls.set(id, el);
   pieceMeta.set(id, { type, color, r, c });
@@ -1746,7 +1762,7 @@ function movePieceEl(id, r, c) {
   const el = pieceEls.get(id);
   const m = pieceMeta.get(id);
   m.r = r; m.c = c;
-  const tf = transformFor(r, c);
+  const tf = pieceTransformFor(r, c, m.color);
   el.style.setProperty('--tf', tf);
   el.style.transform = tf;
 }
@@ -2156,6 +2172,15 @@ function undoLastPair() {
 
 /* ---------- Wire up controls ---------- */
 
+function updateFaceToFaceHint() {
+  const whiteVal = document.getElementById('selWhite').value;
+  const blackVal = document.getElementById('selBlack').value;
+  const hintEl = document.getElementById('faceToFaceHint');
+  hintEl.style.display = (whiteVal !== 'Computer' && blackVal !== 'Computer') ? 'block' : 'none';
+}
+document.getElementById('selWhite').addEventListener('change', updateFaceToFaceHint);
+document.getElementById('selBlack').addEventListener('change', updateFaceToFaceHint);
+
 document.getElementById('btnNewGame').addEventListener('click', () => {
   const last = game ? playerAssignment : (loadLastPlayers() || {});
   document.getElementById('selWhite').value = last.white || 'Mathias';
@@ -2166,6 +2191,7 @@ document.getElementById('btnNewGame').addEventListener('click', () => {
     if (lastPrefs.difficulty !== undefined) document.getElementById('selDifficulty').value = String(lastPrefs.difficulty);
   }
   document.getElementById('startWarning').style.display = 'none';
+  updateFaceToFaceHint();
   document.getElementById('startOverlay').classList.remove('hidden');
 });
 document.getElementById('btnStart').addEventListener('click', () => {
@@ -2196,6 +2222,7 @@ document.getElementById('btnOverNewGame').addEventListener('click', () => {
   document.getElementById('selWhite').value = playerAssignment.white;
   document.getElementById('selBlack').value = playerAssignment.black;
   document.getElementById('startWarning').style.display = 'none';
+  updateFaceToFaceHint();
   document.getElementById('startOverlay').classList.remove('hidden');
 });
 document.getElementById('btnOverClose').addEventListener('click', () => {
@@ -2234,6 +2261,7 @@ renderRecords();
     if (last.time !== undefined) document.getElementById('selTime').value = String(last.time);
     if (last.difficulty !== undefined) document.getElementById('selDifficulty').value = String(last.difficulty);
   }
+  updateFaceToFaceHint();
 })();
 
 
