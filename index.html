@@ -441,6 +441,88 @@
   .records-row .rl{ color:var(--wine-bright); font-family:var(--font-mono); }
   .records-row .rd{ color:var(--ink-faint); font-family:var(--font-mono); }
 
+  /* ---------- Game Review ---------- */
+  .review-opening{
+    font-family:var(--font-body);
+    font-weight:600;
+    font-size:14.5px;
+    color:var(--brass-bright);
+    margin-top:-4px;
+    margin-bottom:2px;
+  }
+  .progress-track{
+    height:8px;
+    border-radius:4px;
+    background:rgba(0,0,0,0.3);
+    overflow:hidden;
+    margin-top:8px;
+  }
+  .progress-fill{
+    height:100%;
+    width:0%;
+    background:linear-gradient(90deg, var(--brass), var(--brass-bright));
+    transition:width .15s ease;
+  }
+  .review-progress-label{
+    font-family:var(--font-mono);
+    font-size:11px;
+    color:var(--ink-faint);
+    margin-top:6px;
+  }
+  .review-summary-grid{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:14px;
+  }
+  .review-summary-col h3{
+    margin:0 0 8px;
+    font-family:var(--font-mono);
+    font-size:11px;
+    letter-spacing:0.1em;
+    text-transform:uppercase;
+    color:var(--ink-faint);
+  }
+  .review-stat-row{
+    display:flex;
+    justify-content:space-between;
+    font-size:13px;
+    padding:3px 0;
+  }
+  .review-current-move{
+    font-family:var(--font-mono);
+    font-size:13.5px;
+    color:var(--ink-dim);
+    min-height:18px;
+    margin-bottom:8px;
+  }
+  .review-move-list{ max-height:220px; }
+  .review-move-entry{
+    cursor:pointer;
+    padding:1px 3px;
+    border-radius:3px;
+  }
+  .review-move-entry:hover{ background:rgba(201,162,75,0.15); }
+  .review-move-entry.active{
+    background:rgba(201,162,75,0.28);
+    box-shadow:inset 0 0 0 1px rgba(201,162,75,0.5);
+  }
+  .mv-best{ color:#8fbf8a; }
+  .mv-good{ color:var(--ink-dim); }
+  .mv-inaccuracy{ color:#d9c15a; }
+  .mv-mistake{ color:#e0954a; }
+  .mv-blunder{ color:var(--wine-bright); font-weight:600; }
+  #reviewTakeaways ul{ margin:0; padding-left:18px; }
+  #reviewTakeaways li{ font-size:13px; color:var(--ink-dim); margin-bottom:8px; line-height:1.4; }
+  #reviewTakeaways .takeaway-side{
+    font-family:var(--font-mono);
+    font-size:10.5px;
+    letter-spacing:0.1em;
+    text-transform:uppercase;
+    color:var(--brass);
+    margin:10px 0 4px;
+  }
+  #reviewTakeaways .takeaway-side:first-child{ margin-top:0; }
+
   select{
     font-family:var(--font-body);
     font-size:13px;
@@ -637,7 +719,7 @@
     </div>
   </div>
 
-  <div class="panel">
+  <div class="panel" id="normalPanel">
     <div class="card">
       <h2>Players</h2>
       <div class="player-row" id="rowBlack">
@@ -681,6 +763,50 @@
         <button class="primary" id="btnNewGame">New Game</button>
         <button id="btnUndo" disabled>Undo</button>
         <button class="danger" id="btnResign" disabled>Resign</button>
+        <button id="btnReviewGame" disabled>Review Game</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel" id="reviewPanel" style="display:none;">
+    <div class="card">
+      <h2>Game Review</h2>
+      <div id="reviewOpeningLine" class="review-opening"></div>
+      <div id="reviewProgressWrap" style="display:none;">
+        <div class="progress-track"><div class="progress-fill" id="reviewProgressFill"></div></div>
+        <div class="review-progress-label" id="reviewProgressLabel">Analyzing…</div>
+      </div>
+    </div>
+
+    <div class="card" id="reviewSummaryCard" style="display:none;">
+      <h2>Summary</h2>
+      <div class="review-summary-grid" id="reviewSummaryGrid"></div>
+    </div>
+
+    <div class="card" id="reviewNavCard" style="display:none;">
+      <h2>Board</h2>
+      <div class="review-current-move" id="reviewCurrentMove"></div>
+      <div class="controls">
+        <button id="btnReviewStart" class="small">⏮ Start</button>
+        <button id="btnReviewPrev" class="small">◀ Prev</button>
+        <button id="btnReviewNext" class="small">Next ▶</button>
+        <button id="btnReviewEnd" class="small">End ⏭</button>
+      </div>
+    </div>
+
+    <div class="card" id="reviewMovesCard" style="display:none;">
+      <h2>Move List</h2>
+      <div class="history review-move-list" id="reviewMoveList"></div>
+    </div>
+
+    <div class="card" id="reviewTakeawaysCard" style="display:none;">
+      <h2>Ideas to Focus On</h2>
+      <div id="reviewTakeaways"></div>
+    </div>
+
+    <div class="card">
+      <div class="controls">
+        <button class="primary" id="btnExitReview">Exit Review</button>
       </div>
     </div>
   </div>
@@ -1292,6 +1418,35 @@ function findBestMove(state, depth) {
   return { move: chosen, score: best, nodes: nodeCounter.n };
 }
 
+// Like findBestMove, but returns the score for every legal move rather than
+// only the winner — used by post-game analysis so it can look up how the move
+// actually played compares to the best available, in a single search pass.
+// Scores are all from the perspective of `state.turn` (the side to move here).
+function evaluateAllMoves(state, depth) {
+  const color = state.turn;
+  const moves = orderMoves(genLegalMoves(state, color));
+  if (moves.length === 0) return { scored: [], best: null };
+  const nodeCounter = { n: 0 };
+  let alpha = -Infinity, beta = Infinity;
+  const scored = [];
+  for (const m of moves) {
+    applyMove(state, m);
+    const val = -negamax(state, depth - 1, -beta, -alpha, nodeCounter);
+    undoMove(state);
+    scored.push({ move: m, score: val });
+    if (val > alpha) alpha = val;
+  }
+  let best = scored[0];
+  for (const s of scored) if (s.score > best.score) best = s;
+  return { scored, best, nodes: nodeCounter.n };
+}
+
+function movesMatch(a, b) {
+  return a.from.r === b.from.r && a.from.c === b.from.c &&
+         a.to.r === b.to.r && a.to.c === b.to.c &&
+         (a.promotion || null) === (b.promotion || null);
+}
+
 // ---------- SAN notation ----------
 
 function fileLetter(c) { return 'abcdefgh'[c]; }
@@ -1342,6 +1497,274 @@ function finishSAN(state, move, base) {
 }
 
 
+
+
+/* ============================================================
+   OPENING DETECTION & POST-GAME ANALYSIS
+   ============================================================ */
+// A compact opening classifier — not a full ECO database, but covers the
+// common openings a casual/family game is likely to reach. Matched against
+// the actual game's SAN move sequence by longest matching prefix.
+const OPENING_BOOK = [
+  // --- single first-move fallbacks (used only if nothing deeper matches) ---
+  { name: "King's Pawn Opening", moves: "e4" },
+  { name: "Queen's Pawn Opening", moves: "d4" },
+  { name: "English Opening", moves: "c4" },
+  { name: "Réti Opening", moves: "Nf3" },
+  { name: "King's Fianchetto Opening", moves: "g3" },
+  { name: "Nimzo-Larsen Attack", moves: "b3" },
+  { name: "Bird's Opening", moves: "f4" },
+  { name: "Van't Kruijs Opening", moves: "e3" },
+  { name: "Polish Opening", moves: "b4" },
+  // --- 1.e4 e5 ---
+  { name: "King's Pawn Game", moves: "e4 e5" },
+  { name: "Ruy Lopez", moves: "e4 e5 Nf3 Nc6 Bb5" },
+  { name: "Ruy Lopez, Morphy Defense", moves: "e4 e5 Nf3 Nc6 Bb5 a6" },
+  { name: "Ruy Lopez, Berlin Defense", moves: "e4 e5 Nf3 Nc6 Bb5 Nf6" },
+  { name: "Ruy Lopez, Exchange Variation", moves: "e4 e5 Nf3 Nc6 Bb5 a6 Bxc6" },
+  { name: "Italian Game", moves: "e4 e5 Nf3 Nc6 Bc4" },
+  { name: "Italian Game, Giuoco Piano", moves: "e4 e5 Nf3 Nc6 Bc4 Bc5" },
+  { name: "Two Knights Defense", moves: "e4 e5 Nf3 Nc6 Bc4 Nf6" },
+  { name: "Hungarian Defense", moves: "e4 e5 Nf3 Nc6 Bc4 Be7" },
+  { name: "Scotch Game", moves: "e4 e5 Nf3 Nc6 d4" },
+  { name: "Four Knights Game", moves: "e4 e5 Nf3 Nc6 Nc3 Nf6" },
+  { name: "Three Knights Game", moves: "e4 e5 Nf3 Nc6 Nc3" },
+  { name: "Petrov's Defense", moves: "e4 e5 Nf3 Nf6" },
+  { name: "Philidor Defense", moves: "e4 e5 Nf3 d6" },
+  { name: "King's Gambit", moves: "e4 e5 f4" },
+  { name: "King's Gambit Accepted", moves: "e4 e5 f4 exf4" },
+  { name: "King's Gambit Declined", moves: "e4 e5 f4 Bc5" },
+  { name: "Vienna Game", moves: "e4 e5 Nc3" },
+  { name: "Bishop's Opening", moves: "e4 e5 Bc4" },
+  { name: "Center Game", moves: "e4 e5 d4" },
+  { name: "Danish Gambit", moves: "e4 e5 d4 exd4 c3" },
+  // --- 1.e4 c5 (Sicilian) ---
+  { name: "Sicilian Defense", moves: "e4 c5" },
+  { name: "Sicilian Defense, Open", moves: "e4 c5 Nf3 d6 d4" },
+  { name: "Sicilian Defense, Najdorf Variation", moves: "e4 c5 Nf3 d6 d4 cxd4 Nxd4 Nf6 Nc3 a6" },
+  { name: "Sicilian Defense, Dragon Variation", moves: "e4 c5 Nf3 d6 d4 cxd4 Nxd4 Nf6 Nc3 g6" },
+  { name: "Sicilian Defense, Classical Variation", moves: "e4 c5 Nf3 d6 d4 cxd4 Nxd4 Nf6 Nc3 Nc6" },
+  { name: "Sicilian Defense, Scheveningen Variation", moves: "e4 c5 Nf3 d6 d4 cxd4 Nxd4 Nf6 Nc3 e6" },
+  { name: "Sicilian Defense, Closed", moves: "e4 c5 Nc3" },
+  { name: "Sicilian Defense, Alapin Variation", moves: "e4 c5 c3" },
+  { name: "Sicilian Defense, Smith-Morra Gambit", moves: "e4 c5 d4 cxd4 c3" },
+  // --- 1.e4 e6 (French) ---
+  { name: "French Defense", moves: "e4 e6" },
+  { name: "French Defense, Advance Variation", moves: "e4 e6 d4 d5 e5" },
+  { name: "French Defense, Exchange Variation", moves: "e4 e6 d4 d5 exd5" },
+  { name: "French Defense, Winawer Variation", moves: "e4 e6 d4 d5 Nc3 Bb4" },
+  { name: "French Defense, Classical Variation", moves: "e4 e6 d4 d5 Nc3 Nf6" },
+  { name: "French Defense, Tarrasch Variation", moves: "e4 e6 d4 d5 Nd2" },
+  // --- 1.e4 c6 (Caro-Kann) ---
+  { name: "Caro-Kann Defense", moves: "e4 c6" },
+  { name: "Caro-Kann Defense, Advance Variation", moves: "e4 c6 d4 d5 e5" },
+  { name: "Caro-Kann Defense, Exchange Variation", moves: "e4 c6 d4 d5 exd5" },
+  { name: "Caro-Kann Defense, Classical Variation", moves: "e4 c6 d4 d5 Nc3 dxe4" },
+  // --- other 1.e4 replies ---
+  { name: "Scandinavian Defense", moves: "e4 d5" },
+  { name: "Alekhine's Defense", moves: "e4 Nf6" },
+  { name: "Pirc Defense", moves: "e4 d6" },
+  { name: "Modern Defense", moves: "e4 g6" },
+  { name: "Nimzowitsch Defense", moves: "e4 Nc6" },
+  // --- 1.d4 d5 ---
+  { name: "Queen's Pawn Game", moves: "d4 d5" },
+  { name: "Queen's Gambit", moves: "d4 d5 c4" },
+  { name: "Queen's Gambit Declined", moves: "d4 d5 c4 e6" },
+  { name: "Queen's Gambit Accepted", moves: "d4 d5 c4 dxc4" },
+  { name: "Slav Defense", moves: "d4 d5 c4 c6" },
+  { name: "Semi-Slav Defense", moves: "d4 d5 c4 c6 Nc3 Nf6 Nf3 e6" },
+  { name: "London System", moves: "d4 d5 Bf4" },
+  { name: "Colle System", moves: "d4 d5 Nf3 Nf6 e3" },
+  // --- 1.d4 Nf6 (Indian systems) ---
+  { name: "Indian Defense", moves: "d4 Nf6" },
+  { name: "King's Indian Defense", moves: "d4 Nf6 c4 g6" },
+  { name: "Nimzo-Indian Defense", moves: "d4 Nf6 c4 e6 Nc3 Bb4" },
+  { name: "Queen's Indian Defense", moves: "d4 Nf6 c4 e6 Nf3 b6" },
+  { name: "Grünfeld Defense", moves: "d4 Nf6 c4 g6 Nc3 d5" },
+  { name: "Bogo-Indian Defense", moves: "d4 Nf6 c4 e6 Nf3 Bb4" },
+  { name: "Catalan Opening", moves: "d4 Nf6 c4 e6 g3" },
+  { name: "Benoni Defense", moves: "d4 Nf6 c4 c5" },
+  { name: "Benko Gambit", moves: "d4 Nf6 c4 c5 d5 b5" },
+  // --- other 1.d4 ---
+  { name: "Dutch Defense", moves: "d4 f5" },
+  // --- flank openings ---
+  { name: "English Opening", moves: "c4" },
+  { name: "English Opening, Reversed Sicilian", moves: "c4 e5" },
+  { name: "Réti Opening", moves: "Nf3" },
+  { name: "Réti Opening", moves: "Nf3 d5 c4" },
+  { name: "King's Fianchetto Opening", moves: "g3" },
+  { name: "Nimzo-Larsen Attack", moves: "b3" },
+  { name: "Bird's Opening", moves: "f4" },
+  { name: "Van't Kruijs Opening", moves: "e3" },
+  { name: "Polish Opening", moves: "b4" },
+];
+
+function stripAnnotations(san) {
+  return san.replace(/[+#!?]+$/g, '');
+}
+
+function detectOpening(sanHistoryList) {
+  const played = sanHistoryList.map(stripAnnotations);
+  let bestMatch = null;
+  for (const entry of OPENING_BOOK) {
+    const bookMoves = entry.moves.split(' ');
+    if (bookMoves.length > played.length) continue;
+    let matches = true;
+    for (let i = 0; i < bookMoves.length; i++) {
+      if (bookMoves[i] !== played[i]) { matches = false; break; }
+    }
+    if (matches) {
+      if (!bestMatch || bookMoves.length > bestMatch.depth) {
+        bestMatch = { name: entry.name, depth: bookMoves.length };
+      }
+    }
+  }
+  return bestMatch ? bestMatch.name : 'Unidentified Opening';
+}
+
+/* ============================================================
+   POST-GAME ANALYSIS
+   ============================================================
+   Replays a finished game from the start, scoring every move actually
+   played against the engine's own best move at that position (same engine
+   used for the computer opponent, just searched a bit deeper since this
+   runs once after the game rather than live). This is a lightweight replay
+   engine, not a strong analysis tool — it will catch outright blunders and
+   missed material within its search horizon, which is exactly the feedback
+   most useful to a beginner, but it won't see deep tactics the way a
+   dedicated chess engine would. */
+
+const ANALYSIS_DEPTH = 3;
+
+// Centipawn-loss thresholds for classifying a played move against the best
+// available move in the same position (loosely modeled on how sites like
+// lichess/chess.com bucket move quality).
+const MOVE_QUALITY = [
+  { max: 0, key: 'best', label: 'Best', className: 'mv-best' },
+  { max: 30, key: 'good', label: 'Good', className: 'mv-good' },
+  { max: 90, key: 'inaccuracy', label: 'Inaccuracy', className: 'mv-inaccuracy' },
+  { max: 250, key: 'mistake', label: 'Mistake', className: 'mv-mistake' },
+  { max: Infinity, key: 'blunder', label: 'Blunder', className: 'mv-blunder' },
+];
+
+function classifyLoss(loss) {
+  for (const tier of MOVE_QUALITY) {
+    if (loss <= tier.max) return tier;
+  }
+  return MOVE_QUALITY[MOVE_QUALITY.length - 1];
+}
+
+// historyRecords: array of {move} objects in the order they were actually
+// played (i.e. game.history from the finished game). Returns an array of
+// per-ply analysis entries plus aggregate summaries, and calls
+// onProgress(doneCount, total) as it works through the game so the UI can
+// show a progress indicator (this is synchronous per-call but the caller
+// chunks it across frames — see runGameAnalysis).
+function analyzeOnePly(state, actualMove, depth) {
+  const { scored, best } = evaluateAllMoves(state, depth);
+  const playedEntry = scored.find(s => movesMatch(s.move, actualMove));
+  const playedScore = playedEntry ? playedEntry.score : null;
+  const loss = playedScore === null ? 0 : Math.max(0, best.score - playedScore);
+  const tier = classifyLoss(loss);
+  const isBest = playedEntry && movesMatch(playedEntry.move, best.move);
+  return {
+    evalBeforeForMover: best.score, // best achievable score for the side to move, before the move
+    playedScore,
+    bestMove: best.move,
+    loss,
+    tier,
+    isBest: !!isBest,
+  };
+}
+
+function defaultRecommendations() {
+  return [];
+}
+
+// Builds simple, templated coaching notes from the aggregate stats — honest
+// about being pattern-based rather than deep engine insight, but genuinely
+// useful for a beginner audience.
+function buildTakeaways(colorLabel, stats, plyDetails, sanHistoryList) {
+  const notes = [];
+  if (stats.blunder > 0) {
+    notes.push(`${stats.blunder} blunder${stats.blunder > 1 ? 's' : ''} — look out for moves that hang a piece or miss a big capture. Before moving, check what your opponent could take next.`);
+  }
+  if (stats.mistake > 0) {
+    notes.push(`${stats.mistake} mistake${stats.mistake > 1 ? 's' : ''} — these usually come from missing a tactic a couple of moves ahead. Try scanning for checks, captures, and threats before settling on a move.`);
+  }
+  if (stats.inaccuracy >= 3) {
+    notes.push(`Several inaccuracies — nothing game-losing on their own, but a pattern of small imprecise moves usually means slowing down and double-checking the top 2-3 candidate moves before playing.`);
+  }
+  // Opening development heuristic: were minor pieces developed in the first ~10 plies?
+  const openingSan = sanHistoryList.slice(0, 10);
+  const developed = openingSan.filter(s => /^[NB]/.test(s.replace(/[+#!?]+$/g, ''))).length;
+  const pawnMoves = openingSan.filter(s => /^[a-h]/.test(s)).length;
+  if (pawnMoves >= 5 && developed <= 1) {
+    notes.push(`Slow development — a lot of early pawn moves and few knights/bishops brought out. Try developing minor pieces (knights and bishops) before move 6-8, and avoid moving the same piece twice in the opening.`);
+  }
+  // Castling heuristic: did this side castle at all, and if so how late?
+  const castleIdx = sanHistoryList.findIndex(s => s === 'O-O' || s === 'O-O-O');
+  if (castleIdx === -1 && sanHistoryList.length >= 16) {
+    notes.push(`No castling this game — getting the king to safety early (usually by move 8-10) helps avoid it becoming a target later.`);
+  } else if (castleIdx > 20) {
+    notes.push(`Castled quite late (around move ${Math.ceil((castleIdx + 1) / 2)}) — earlier castling usually keeps the king safer while the position is still open.`);
+  }
+  if (notes.length === 0) {
+    notes.push(`Clean game — no big tactical slips found. At this level, the next step is usually opening principles (center control, piece development, king safety) and looking one move deeper before committing.`);
+  }
+  return notes;
+}
+
+function cloneBoard(board) {
+  return board.map(row => row.map(p => p ? { ...p } : null));
+}
+
+// Replays the finished game's actual moves from the start, analyzing one ply
+// per tick (via setTimeout) so the browser stays responsive and the caller
+// can show progress. onProgress(done, total) fires after each ply; onDone
+// receives the full result object.
+function runGameAnalysis(historyRecords, sanHistoryList, onProgress, onDone) {
+  const state = newGame();
+  const total = historyRecords.length;
+  const plies = [];
+  const snapshots = [cloneBoard(state.board)]; // snapshot 0 = starting position
+  const stats = {
+    w: { best: 0, good: 0, inaccuracy: 0, mistake: 0, blunder: 0 },
+    b: { best: 0, good: 0, inaccuracy: 0, mistake: 0, blunder: 0 },
+  };
+  let i = 0;
+
+  function step() {
+    if (i >= total) {
+      const opening = detectOpening(sanHistoryList);
+      const takeaways = {
+        w: buildTakeaways('w', stats.w, plies.filter(p => p.color === 'w'), sanHistoryList.filter((_, idx) => idx % 2 === 0)),
+        b: buildTakeaways('b', stats.b, plies.filter(p => p.color === 'b'), sanHistoryList.filter((_, idx) => idx % 2 === 1)),
+      };
+      onDone({ plies, stats, opening, snapshots, sanHistoryList, takeaways });
+      return;
+    }
+    const record = historyRecords[i];
+    const move = record.move;
+    const color = move.piece.color;
+    const analysis = analyzeOnePly(state, move, ANALYSIS_DEPTH);
+    plies.push({
+      ply: i,
+      color,
+      san: sanHistoryList[i] || '',
+      move,
+      ...analysis,
+    });
+    stats[color][analysis.tier.key]++;
+    applyMove(state, move);
+    snapshots.push(cloneBoard(state.board));
+    i++;
+    onProgress(i, total);
+    setTimeout(step, 0);
+  }
+
+  setTimeout(step, 0);
+}
 
 
 /* ============================================================
@@ -1404,6 +1827,7 @@ const rowWhiteEl = document.getElementById('rowWhite');
 const rowBlackEl = document.getElementById('rowBlack');
 const btnUndo = document.getElementById('btnUndo');
 const btnResign = document.getElementById('btnResign');
+const btnReviewGame = document.getElementById('btnReviewGame');
 const nameWhiteEl = document.getElementById('nameWhite');
 const nameBlackEl = document.getElementById('nameBlack');
 const recordsTableEl = document.getElementById('recordsTable');
@@ -1705,14 +2129,15 @@ function attachHoverPreview() {
 
 /* ---------- Piece layer sync ---------- */
 
-function rebuildPiecesFromBoard() {
+function rebuildPiecesFromBoard(boardOverride) {
+  const board = boardOverride || game.board;
   piecesLayerEl.innerHTML = '';
   pieceEls.clear();
   pieceMeta.clear();
   nextPieceId = 1;
   for (let r = 0; r < 8; r++) {
     for (let c = 0; c < 8; c++) {
-      const p = game.board[r][c];
+      const p = board[r][c];
       if (!p) continue;
       createPieceEl(p.type, p.color, r, c);
     }
@@ -1999,6 +2424,7 @@ function startNewGame(whiteId, blackId, timeSeconds, diff) {
   nameWhiteEl.textContent = whiteId === 'Computer' ? 'White — Computer' : `White — ${whiteId}`;
   nameBlackEl.textContent = blackId === 'Computer' ? 'Black — Computer' : `Black — ${blackId}`;
   btnUndo.disabled = true;
+  btnReviewGame.disabled = true;
   startClockTick();
 
   if (!isHumanTurn()) {
@@ -2141,6 +2567,7 @@ function endGame(winnerColor, desc) {
   gameOver = true;
   stopClockTick();
   btnResign.disabled = true;
+  if (game.history.length > 0) btnReviewGame.disabled = false;
   const title = winnerColor === null ? "It's a draw" : `${nameFor(winnerColor)} wins`;
   setStatus(title + ' — ' + desc, 'over');
   document.getElementById('overTitle').textContent = title;
@@ -2169,6 +2596,146 @@ function undoLastPair() {
   btnUndo.disabled = game.history.length === 0;
   setStatus(`Move undone. ${nameFor(game.turn)} to move.`);
 }
+
+/* ---------- Game Review ---------- */
+
+let reviewData = null;
+let reviewIndex = 0;
+
+const normalPanelEl = document.getElementById('normalPanel');
+const reviewPanelEl = document.getElementById('reviewPanel');
+
+const TIER_SUFFIX = { best: '', good: '', inaccuracy: '?!', mistake: '?', blunder: '??' };
+
+function openReview() {
+  if (!game || game.history.length === 0) return;
+  normalPanelEl.style.display = 'none';
+  reviewPanelEl.style.display = 'flex';
+  document.getElementById('reviewOpeningLine').textContent = '';
+  document.getElementById('reviewProgressWrap').style.display = 'block';
+  document.getElementById('reviewSummaryCard').style.display = 'none';
+  document.getElementById('reviewNavCard').style.display = 'none';
+  document.getElementById('reviewMovesCard').style.display = 'none';
+  document.getElementById('reviewTakeawaysCard').style.display = 'none';
+  setReviewProgress(0, game.history.length);
+
+  const historyRecords = game.history.slice();
+  const sanList = sanHistory.slice();
+
+  runGameAnalysis(historyRecords, sanList, setReviewProgress, onReviewComplete);
+}
+
+function setReviewProgress(done, total) {
+  const pct = total === 0 ? 100 : Math.round((done / total) * 100);
+  document.getElementById('reviewProgressFill').style.width = pct + '%';
+  document.getElementById('reviewProgressLabel').textContent = `Analyzing… ${done}/${total} moves`;
+}
+
+function onReviewComplete(result) {
+  reviewData = result;
+  reviewIndex = result.plies.length; // default to final position
+  document.getElementById('reviewProgressWrap').style.display = 'none';
+  document.getElementById('reviewOpeningLine').textContent = result.opening;
+  document.getElementById('reviewSummaryCard').style.display = 'block';
+  document.getElementById('reviewNavCard').style.display = 'block';
+  document.getElementById('reviewMovesCard').style.display = 'block';
+  document.getElementById('reviewTakeawaysCard').style.display = 'block';
+  renderReviewSummary();
+  renderReviewMoveList();
+  renderReviewTakeaways();
+  renderReviewBoard();
+}
+
+function renderReviewSummary() {
+  const tiers = ['best', 'good', 'inaccuracy', 'mistake', 'blunder'];
+  const tierLabels = { best: 'Best', good: 'Good', inaccuracy: 'Inaccuracy', mistake: 'Mistake', blunder: 'Blunder' };
+  function col(color) {
+    const s = reviewData.stats[color];
+    const rows = tiers.map(t => `<div class="review-stat-row"><span class="${'mv-' + t}">${tierLabels[t]}</span><span>${s[t]}</span></div>`).join('');
+    return `<div class="review-summary-col"><h3>${nameFor(color)}</h3>${rows}</div>`;
+  }
+  document.getElementById('reviewSummaryGrid').innerHTML = col('w') + col('b');
+}
+
+function renderReviewMoveList() {
+  const plies = reviewData.plies;
+  let html = '';
+  for (let i = 0; i < plies.length; i += 2) {
+    const num = i / 2 + 1;
+    const wPly = plies[i];
+    const bPly = plies[i + 1];
+    const wHtml = wPly ? moveEntryHtml(wPly, i) : '';
+    const bHtml = bPly ? moveEntryHtml(bPly, i + 1) : '';
+    html += `<div class="history-row"><span class="num">${num}.</span><span>${wHtml}</span><span>${bHtml}</span></div>`;
+  }
+  document.getElementById('reviewMoveList').innerHTML = html || '<div class="history-empty">No moves.</div>';
+  document.getElementById('reviewMoveList').querySelectorAll('.review-move-entry').forEach(el => {
+    el.addEventListener('click', () => {
+      reviewIndex = parseInt(el.dataset.idx, 10) + 1;
+      renderReviewBoard();
+    });
+  });
+  updateActiveMoveEntry();
+}
+
+function moveEntryHtml(ply, idx) {
+  const suffix = TIER_SUFFIX[ply.tier.key] || '';
+  return `<span class="review-move-entry ${ply.tier.className}" data-idx="${idx}">${ply.san}${suffix}</span>`;
+}
+
+function updateActiveMoveEntry() {
+  document.getElementById('reviewMoveList').querySelectorAll('.review-move-entry').forEach(el => {
+    const idx = parseInt(el.dataset.idx, 10);
+    el.classList.toggle('active', idx === reviewIndex - 1);
+  });
+}
+
+function renderReviewTakeaways() {
+  const container = document.getElementById('reviewTakeaways');
+  function section(color) {
+    const items = reviewData.takeaways[color].map(t => `<li>${t}</li>`).join('');
+    return `<div class="takeaway-side">${nameFor(color)}</div><ul>${items}</ul>`;
+  }
+  container.innerHTML = section('w') + section('b');
+}
+
+function renderReviewBoard() {
+  const snapshot = reviewData.snapshots[reviewIndex];
+  rebuildPiecesFromBoard(snapshot);
+  clearHighlights(['last-from', 'last-to', 'in-check']);
+  const label = document.getElementById('reviewCurrentMove');
+  if (reviewIndex === 0) {
+    label.textContent = 'Starting position';
+  } else {
+    const ply = reviewData.plies[reviewIndex - 1];
+    highlightLastMove(ply.move);
+    const moveNum = Math.floor(ply.ply / 2) + 1;
+    const suffix = TIER_SUFFIX[ply.tier.key] || '';
+    label.innerHTML = `Move ${moveNum}${ply.color === 'b' ? '…' : '.'} <span class="${ply.tier.className}">${ply.san}${suffix}</span> — ${ply.tier.label}${ply.loss > 0 ? ` (${ply.loss}cp lost)` : ''}`;
+  }
+  document.getElementById('btnReviewPrev').disabled = reviewIndex === 0;
+  document.getElementById('btnReviewStart').disabled = reviewIndex === 0;
+  document.getElementById('btnReviewNext').disabled = reviewIndex >= reviewData.snapshots.length - 1;
+  document.getElementById('btnReviewEnd').disabled = reviewIndex >= reviewData.snapshots.length - 1;
+  updateActiveMoveEntry();
+}
+
+function exitReview() {
+  reviewPanelEl.style.display = 'none';
+  normalPanelEl.style.display = 'flex';
+  rebuildPiecesFromBoard();
+  clearHighlights(['last-from', 'last-to', 'in-check']);
+  const last = game.history[game.history.length - 1];
+  if (last) highlightLastMove(last.move);
+  highlightCheck();
+}
+
+document.getElementById('btnReviewGame').addEventListener('click', openReview);
+document.getElementById('btnExitReview').addEventListener('click', exitReview);
+document.getElementById('btnReviewStart').addEventListener('click', () => { reviewIndex = 0; renderReviewBoard(); });
+document.getElementById('btnReviewEnd').addEventListener('click', () => { reviewIndex = reviewData.snapshots.length - 1; renderReviewBoard(); });
+document.getElementById('btnReviewPrev').addEventListener('click', () => { if (reviewIndex > 0) { reviewIndex--; renderReviewBoard(); } });
+document.getElementById('btnReviewNext').addEventListener('click', () => { if (reviewIndex < reviewData.snapshots.length - 1) { reviewIndex++; renderReviewBoard(); } });
 
 /* ---------- Wire up controls ---------- */
 
